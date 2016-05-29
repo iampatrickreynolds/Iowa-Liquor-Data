@@ -21,9 +21,9 @@ Issues with the data:
 * Massive redundancy due to wide format, really three tables
 * Inconsistent header names (units for example)
 * Unecessary $ symbols
-* Address / location entries are a mess: longitude and latitude should be their own columns
+* Address / location entries are a mess: longitude and latitude should be their own columns, carriage returns with csv cells unnecessarily
 
-Grade: B
+Grade: B-
 
 
 **Visualization Ideas**

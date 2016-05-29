@@ -12,8 +12,8 @@ Base = declarative_base()
 
 def setup_database(echo=False, drop=True):
     """Setup the database, dropping any existing tables by default."""
-    engine = get_engine()
-    session = get_session()
+    engine = get_engine(echo=echo)
+    session = get_session(echo=echo)
     if drop:
         Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
@@ -22,6 +22,7 @@ def setup_database(echo=False, drop=True):
 # Manual relationship
 
 stores_items = Table('stores_items', Base.metadata,
+    Column('transaction_number', String, primary_key=True, index=True),
     Column('store_number', Integer, ForeignKey('Store.number'), index=True),
     Column('item_number', Integer, ForeignKey('Item.number'), index=True)
 )
@@ -30,53 +31,51 @@ stores_items = Table('stores_items', Base.metadata,
 class Store(Base):
     __tablename__ = "Store"
 
-    number = Column(Integer, primary_key=True)
+    number = Column(Integer, primary_key=True, index=True)
 
     address = Column(String)
-    city = Column(String)
+    city = Column(String, index=True)
     county = Column(String)
-    county_number = Column(Integer)
+    county_number = Column(Integer, index=True)
     latitude = Column(Float)
     longitude = Column(Float)
     location = Column(String) # Usually address + lat and long
-    name = Column(String)
-    zip_code = Column(Integer)
+    name = Column(String, index=True)
+    zip_code = Column(Integer, index=True)
 
-    transactions = relationship("Transaction", back_populates="store",
-                                order_by="Transaction.date")
+    transactions = relationship("Transaction", back_populates="store")
     items = relationship("Item", secondary=stores_items, back_populates="stores")
 
     __mapper_args__ = {
-        "order_by": [number, county_number, zip_code]
+        "order_by": [county_number, zip_code]
     }
 
 
 class Item(Base):
     __tablename__ = "Item"
 
-    number = Column(Integer, primary_key=True)
+    number = Column(Integer, primary_key=True, index=True)
 
     bottle_volume = Column(Float) # milliliters
-    category = Column(String)
+    category = Column(String, index=True)
     category_name = Column(String)
     description = Column(String)
     pack = Column(Integer)
     vendor_name = Column(String)
-    vendor_number = Column(Integer)
+    vendor_number = Column(Integer, index=True)
 
-    transactions = relationship("Transaction", back_populates="item",
-                                order_by="Transaction.date")
+    transactions = relationship("Transaction", back_populates="item")
     stores = relationship("Store", secondary=stores_items, back_populates="items")
 
     __mapper_args__ = {
-        "order_by": [number, category, vendor_number]
+        "order_by": [category]
     }
 
 
 class Transaction(Base):
     __tablename__ = "Transaction"
 
-    number = Column(String, primary_key=True)
+    number = Column(String, primary_key=True, index=True)
 
     bottle_cost = Column(Float)
     bottle_retail = Column(Float)
@@ -94,5 +93,5 @@ class Transaction(Base):
                                 order_by="Item.number")
 
     __mapper_args__ = {
-        "order_by": [date, store_number]
+        "order_by": [desc(date)]
     }

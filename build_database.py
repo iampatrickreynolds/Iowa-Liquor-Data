@@ -1,4 +1,4 @@
-
+from collections import namedtuple
 import csv
 import datetime
 import re
@@ -8,7 +8,7 @@ from sqlalchemy import create_engine, MetaData
 from sqlalchemy.orm import sessionmaker
 
 from access import get_engine, get_session
-from sql_models import Item, Store, Transaction, setup_database
+from sql_models import Item, Store, Transaction, setup_database, stores_items
 
 
 location_regex = re.compile("(.*?)\((.*?),\s(.*?)\)", re.MULTILINE | re.DOTALL)
@@ -26,8 +26,21 @@ def read_csv(filename="Iowa_Liquor_Sales.csv"):
 
 ## Mappers for CSV data to sqlalchemy models
 
-def create_item_from_row(row):
-    item = Item(
+ItemTuple = namedtuple("ItemTuple", [
+    "number", "bottle_volume", "category", "category_name", "description",
+    "pack", "vendor_name", "vendor_number"])
+
+StoreTuple = namedtuple("StoreTuple", [
+    "number", "address", "county", "county_number", "city", "location",
+    "longitude", "latitude", "name", "zip_code"])
+
+TransactionTuple = namedtuple("TransactionTuple", [
+    "number", "bottle_cost", "bottle_retail", "bottles_sold", "date",
+    "gallons_sold", "liters_sold", "total_sale", "store_number", "item_number"])
+
+
+def item_tuple_from_row(row):
+    item = ItemTuple(
         number = int(row["Item Number"]),
         bottle_volume = int(row["Bottle Volume (ml)"]),
         category = row["Category"],
@@ -39,7 +52,7 @@ def create_item_from_row(row):
     )
     return item
 
-def create_store_from_row(row):
+def store_tuple_from_row(row):
     # Sometimes the County number is missing
     try:
         county_number = int(row["County Number"])
@@ -58,7 +71,7 @@ def create_store_from_row(row):
     if zip_code == "712-2":
         zip_code = 51529
 
-    store = Store(
+    store = StoreTuple(
         number = int(row["Store Number"]),
         address = row["Address"],
         county = row["County"],
@@ -72,14 +85,13 @@ def create_store_from_row(row):
     )
     return store
 
-
 def parse_date(date_string):
     dt = datetime.datetime.strptime(date_string, "%m/%d/%Y")
     return dt.date()
 
-def create_transaction_from_row(row):
+def transaction_tuple_from_row(row):
     # Watch out for '$' on price data
-    transaction = Transaction(
+    transaction = TransactionTuple(
         number = row["Invoice/Item Number"],
         bottle_cost = float(row["State Bottle Cost"][1:]), # Remove '$' from front
         bottle_retail = float(row["State Bottle Retail"][1:]), # Remove '$' from front
@@ -87,33 +99,72 @@ def create_transaction_from_row(row):
         date = parse_date(row["Date"]),
         gallons_sold = float(row["Volume Sold (Gallons)"]),
         liters_sold = float(row["Volume Sold (Liters)"]),
-        total_sale = float(row["Sale (Dollars)"][1:]) # Remove '$' from front
+        total_sale = float(row["Sale (Dollars)"][1:]), # Remove '$' from front
+        store_number = int(row["Store Number"]),
+        item_number = int(row["Item Number"])
     )
     return transaction
 
-
 def build_database(echo=False):
-    session = get_session()
+    session = get_session(echo=echo)
+    engine = get_engine(echo=echo)
 
     data = read_csv()
+    items = dict()
+    stores = dict()
+    transactions = []
+    m2m = []
     for i, row in enumerate(data):
         # Create objects from the data in the row
         try:
-            item = create_item_from_row(row)
-            store = create_store_from_row(row)
-            transaction = create_transaction_from_row(row)
+            item = item_tuple_from_row(row)
+            store = store_tuple_from_row(row)
+            transaction = transaction_tuple_from_row(row)
         except ValueError as e:
             print(row)
             print(e)
             continue
-        transaction.item = item
-        transaction.store = store
-        store.items.append(item)
-        session.merge(item)
-        session.merge(store)
-        session.merge(transaction)
-        if (i % 1000) == 0:
+        transactions.append(transaction)
+        m2m.append({"transaction_number": transaction.number,
+                    "store_number": store.number,
+                    "item_number": item.number})
+
+        if (i % 100000) == 0:
+            print(i)
+            session.bulk_insert_mappings(Transaction,
+                                 [t._asdict() for t in transactions])
             session.commit()
+            transactions = []
+            m2m = []
+    session.bulk_insert_mappings(Item,
+                                 [item._asdict() for item in items.values()])
+    session.bulk_insert_mappings(Store,
+                                 [store._asdict() for store in stores.values()])
+    session.bulk_insert_mappings(Transaction,
+                                 [t._asdict() for t in transactions])
+    session.commit()
+
+    data = read_csv()
+    m2m = []
+    for i, row in enumerate(data):
+        # Create objects from the data in the row
+        try:
+            item = item_tuple_from_row(row)
+            store = store_tuple_from_row(row)
+            transaction = transaction_tuple_from_row(row)
+        except ValueError as e:
+            print(row)
+            print(e)
+            continue
+        m2m.append({"transaction_number": transaction.number,
+                    "store_number": store.number,
+                    "item_number": item.number})
+        if (i % 100000) == 0:
+            print(i)
+            engine.execute(stores_items.insert(), m2m)
+            session.commit()
+            m2m = []
+    engine.execute(stores_items.insert(), m2m)
     session.commit()
 
 
