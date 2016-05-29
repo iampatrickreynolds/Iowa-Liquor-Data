@@ -153,16 +153,16 @@ def build_database(echo=False):
     for i, row in enumerate(data):
         # Create objects from the data in the row
         try:
-            item = item_tuple_from_row(row)
-            store = store_tuple_from_row(row)
+            #item = item_tuple_from_row(row)
+            #store = store_tuple_from_row(row)
             transaction = transaction_tuple_from_row(row)
         except ValueError as e:
             print(row)
             print(e)
             continue
         m2m.append({"transaction_number": transaction.number,
-                    "store_number": store.number,
-                    "item_number": item.number})
+                    "store_number": transaction.store_number,
+                    "item_number": transaction.item_number})
         if (i % 1000000) == 0:
             print(i)
             engine.execute(stores_items.insert(), m2m)
@@ -173,7 +173,7 @@ def build_database(echo=False):
 
 
 def main(echo=False):
-    setup_database(echo=echo, drop=True)
+    setup_database(echo=echo, drop=False)
     build_database(echo=echo)
 
 if __name__ == "__main__":
