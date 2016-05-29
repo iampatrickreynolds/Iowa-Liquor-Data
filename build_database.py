@@ -4,9 +4,6 @@ import datetime
 import re
 import sys
 
-from sqlalchemy import create_engine, MetaData
-from sqlalchemy.orm import sessionmaker
-
 from access import get_engine, get_session
 from sql_models import Item, Store, Transaction, setup_database, stores_items
 
@@ -24,7 +21,8 @@ def read_csv(filename="Iowa_Liquor_Sales.csv"):
                 continue
             yield dict(zip(headers, row))
 
-## Mappers for CSV data to sqlalchemy models
+## Mappers for CSV data to sqlalchemy models. These greatly reduce memory
+## overhead when building the database
 
 ItemTuple = namedtuple("ItemTuple", [
     "number", "bottle_volume", "category", "category_name", "description",
@@ -106,9 +104,14 @@ def transaction_tuple_from_row(row):
     return transaction
 
 def build_database(echo=False):
+    """Construct the database from the large CSV file. To speed up the process
+    we use the bulk insert methods of sqlalchemy, which achieve a 10x improvement
+    in build time."""
     session = get_session(echo=echo)
     engine = get_engine(echo=echo)
 
+
+    # First pass to extract objects without many-to-many relationship
     data = read_csv()
     items = dict()
     stores = dict()
@@ -127,7 +130,7 @@ def build_database(echo=False):
         transactions.append(transaction)
         m2m.append({"transaction_number": transaction.number,
                     "store_number": store.number,
-                    "item_number": item.number})
+                    "item_number": item.numberu})
 
         if (i % 100000) == 0:
             print(i)
@@ -144,6 +147,7 @@ def build_database(echo=False):
                                  [t._asdict() for t in transactions])
     session.commit()
 
+    # Second pass to populate the m2m table for stores and items
     data = read_csv()
     m2m = []
     for i, row in enumerate(data):
@@ -159,7 +163,7 @@ def build_database(echo=False):
         m2m.append({"transaction_number": transaction.number,
                     "store_number": store.number,
                     "item_number": item.number})
-        if (i % 100000) == 0:
+        if (i % 1000000) == 0:
             print(i)
             engine.execute(stores_items.insert(), m2m)
             session.commit()

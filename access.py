@@ -1,3 +1,8 @@
+"""Access to the database. Use
+    session = get_session()
+to get a thread safe session for the database.
+"""
+
 import os
 
 from sqlalchemy import create_engine
