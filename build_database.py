@@ -153,8 +153,6 @@ def build_database(echo=False):
     for i, row in enumerate(data):
         # Create objects from the data in the row
         try:
-            #item = item_tuple_from_row(row)
-            #store = store_tuple_from_row(row)
             transaction = transaction_tuple_from_row(row)
         except ValueError as e:
             print(row)
