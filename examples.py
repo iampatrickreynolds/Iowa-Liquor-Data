@@ -43,8 +43,8 @@ for store in stores:
         d[tr.date.isoformat()] += tr.total_sale
     for date_str, sales in d.items():
         data.append((store.number, store.zip_code, date_str, sales))
-names = ["Store Number", "Zip Code", "Date", "Sales"]
-df = pd.DataFrame(data, names=names)
+columns = ["Store Number", "Zip Code", "Date", "Sales"]
+df = pd.DataFrame(data, columns=columns)
 df.to_csv("sales_data.csv")
 
 
