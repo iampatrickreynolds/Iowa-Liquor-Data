@@ -116,7 +116,6 @@ def build_database(echo=False):
     items = dict()
     stores = dict()
     transactions = []
-    m2m = []
     for i, row in enumerate(data):
         # Create objects from the data in the row
         try:
@@ -127,18 +126,16 @@ def build_database(echo=False):
             print(row)
             print(e)
             continue
+        items[item.number] = item
+        stores[store.number] = store
         transactions.append(transaction)
-        m2m.append({"transaction_number": transaction.number,
-                    "store_number": store.number,
-                    "item_number": item.numberu})
-
-        if (i % 100000) == 0:
+        if (i % 1000000) == 0:
             print(i)
             session.bulk_insert_mappings(Transaction,
                                  [t._asdict() for t in transactions])
             session.commit()
             transactions = []
-            m2m = []
+
     session.bulk_insert_mappings(Item,
                                  [item._asdict() for item in items.values()])
     session.bulk_insert_mappings(Store,
